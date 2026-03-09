@@ -177,13 +177,14 @@ class FarmViewSet(viewsets.ModelViewSet, LoggingMixin):
                 "rate_of_cow_feeding", "rate_of_water_giving",
                 "inseminator", "doctor",
             )
+            farm_count = deleted_farms.count()
             serializer = FarmSerializer(deleted_farms, many=True)
             self.log_operation_success(
-                "retrieved", f"{len(serializer.data)} deleted farms"
+                "retrieved", f"{farm_count} deleted farms"
             )
             return Response(
                 {
-                    "total_deleted": len(serializer.data),
+                    "total_deleted": farm_count,
                     "farms": serializer.data,
                 }
             )
@@ -454,13 +455,14 @@ class CowViewSet(viewsets.ModelViewSet, LoggingMixin):
             if farm_id:
                 deleted_cows = deleted_cows.filter(farm__farm_id=farm_id)
 
+            cow_count = deleted_cows.count()
             serializer = CowSerializer(deleted_cows, many=True)
             self.log_operation_success(
-                "retrieved", f"{len(serializer.data)} deleted cows"
+                "retrieved", f"{cow_count} deleted cows"
             )
             return Response(
                 {
-                    "total_deleted": len(serializer.data),
+                    "total_deleted": cow_count,
                     "cows": serializer.data,
                 }
             )
@@ -576,15 +578,16 @@ class CowViewSet(viewsets.ModelViewSet, LoggingMixin):
 
         try:
             cows = self.get_queryset().filter(farm__farm_id=farm_id)
+            cow_count = cows.count()
             serializer = self.get_serializer(cows, many=True)
             self.log_operation_success(
-                "retrieved", f"{len(serializer.data)} cows for farm {farm_id}"
+                "retrieved", f"{cow_count} cows for farm {farm_id}"
             )
 
             return Response(
                 {
                     "farm_id": farm_id,
-                    "total_cows": len(serializer.data),
+                    "total_cows": cow_count,
                     "cows": serializer.data,
                 }
             )
@@ -1322,7 +1325,7 @@ class CowViewSet(viewsets.ModelViewSet, LoggingMixin):
 
         queryset = Reproduction.objects.filter(
             farm__farm_id=farm_id, is_cow_pregnant=True
-        )
+        ).select_related("farm", "cow")
 
         if cow_id:
             queryset = queryset.filter(cow__cow_id=cow_id)
@@ -1356,7 +1359,7 @@ class CowViewSet(viewsets.ModelViewSet, LoggingMixin):
 
         queryset = Reproduction.objects.filter(
             farm__farm_id=farm_id, calving_date__isnull=False
-        )
+        ).select_related("farm", "cow")
 
         if cow_id:
             queryset = queryset.filter(cow__cow_id=cow_id)
@@ -1393,7 +1396,7 @@ class CowViewSet(viewsets.ModelViewSet, LoggingMixin):
         if record_type in ["reproduction", "all"]:
             reproduction_queryset = Reproduction.objects.filter(
                 farm__farm_id=farm_id, is_cow_pregnant=False
-            ).order_by("-heat_sign_recorded_at")
+            ).select_related("farm", "cow").order_by("-heat_sign_recorded_at")
             if cow_id:
                 reproduction_queryset = reproduction_queryset.filter(cow__cow_id=cow_id)
             for record in reproduction_queryset:
@@ -1411,7 +1414,7 @@ class CowViewSet(viewsets.ModelViewSet, LoggingMixin):
         if record_type in ["insemination", "all"]:
             insemination_queryset = InseminationRecord.objects.filter(
                 farm__farm_id=farm_id
-            ).order_by("-recorded_date")
+            ).select_related("farm", "cow").order_by("-recorded_date")
             if cow_id:
                 insemination_queryset = insemination_queryset.filter(cow__cow_id=cow_id)
             for record in insemination_queryset:
@@ -1446,7 +1449,9 @@ class CowViewSet(viewsets.ModelViewSet, LoggingMixin):
 
         # Get farmer medical reports if requested
         if record_type in ["farmer", "all"]:
-            farmer_reports = FarmerMedicalReport.objects.filter(farm__farm_id=farm_id)
+            farmer_reports = FarmerMedicalReport.objects.filter(
+                farm__farm_id=farm_id
+            ).select_related("farm", "cow", "reviewed_by")
             if cow_id:
                 farmer_reports = farmer_reports.filter(cow__cow_id=cow_id)
 
@@ -1468,7 +1473,11 @@ class CowViewSet(viewsets.ModelViewSet, LoggingMixin):
 
         # Get doctor medical assessments if requested
         if record_type in ["doctor", "all"]:
-            assessments = MedicalAssessment.objects.filter(farm__farm_id=farm_id)
+            assessments = MedicalAssessment.objects.filter(
+                farm__farm_id=farm_id
+            ).select_related(
+                "farm", "cow", "assessed_by", "general_health", "udder_health", "mastitis"
+            )
             if cow_id:
                 assessments = assessments.filter(cow__cow_id=cow_id)
 
