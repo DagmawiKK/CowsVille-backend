@@ -241,6 +241,12 @@ class Cow(SoftDeleteModel):
     class Meta:
         unique_together = ("farm", "cow_id")
         ordering = ["farm", "cow_id"]
+        indexes = [
+            # Speeds up the signal query: filter(farm=farm, is_deleted=False)
+            models.Index(fields=["farm", "is_deleted"], name="cow_farm_deleted_idx"),
+            # Speeds up the milking-cow filter: filter(average_daily_milk__gt=0)
+            models.Index(fields=["average_daily_milk"], name="cow_milk_idx"),
+        ]
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -295,6 +301,17 @@ class Reproduction(SoftDeleteModel):
         ordering = [
             models.F("heat_sign_recorded_at").desc(nulls_last=True)
         ]  # Order by most recent heat sign, but keep empty ones (nulls) at the bottom!
+        indexes = [
+            # Speeds up the primary filter in check_heat_sign_alerts and check_pregnancy_alerts
+            models.Index(fields=["is_cow_pregnant"], name="reproduction_pregnant_idx"),
+            # Compound index covers the full filter pattern used in updater.py
+            models.Index(
+                fields=["is_cow_pregnant", "calving_date"],
+                name="reproduction_pregnant_calving_idx",
+            ),
+            # Speeds up get_or_create and per-cow lookups
+            models.Index(fields=["farm", "cow"], name="reproduction_farm_cow_idx"),
+        ]
 
 
 class Message(SoftDeleteModel):
@@ -321,10 +338,24 @@ class Message(SoftDeleteModel):
     is_sent = models.BooleanField(default=False)
 
     def __str__(self):
-        return f"Message for Farm {self.farm.farm_id} - Cow {self.cow.cow_id}"
+        cow_id = self.cow.cow_id if self.cow else "N/A"
+        return f"Message for Farm {self.farm.farm_id} - Cow {cow_id}"
 
     class Meta:
         ordering = ["-sent_date"]
+        indexes = [
+            # Covers the deduplication check in updater.py:
+            # filter(farm=…, message_type=…, sent_date__gte=…)
+            models.Index(
+                fields=["farm", "message_type", "sent_date"],
+                name="message_farm_type_date_idx",
+            ),
+            # More specific version used when a cow is also available
+            models.Index(
+                fields=["farm", "cow", "message_type", "sent_date"],
+                name="message_farm_cow_type_date_idx",
+            ),
+        ]
 
 
 class StaffMember(SoftDeleteModel):
@@ -468,3 +499,7 @@ class InseminationRecord(SoftDeleteModel):
 
     class Meta:
         ordering = ["-recorded_date"]
+        indexes = [
+            # Speeds up per-farm and per-cow filtering in the InseminationRecordViewSet
+            models.Index(fields=["farm", "cow"], name="insemination_farm_cow_idx"),
+        ]

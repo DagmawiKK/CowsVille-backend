@@ -18,8 +18,11 @@ def check_heat_sign_alerts():
     threshold_days = 18  # Days before sending an alert
     alert_count = 0
 
-    # Get cows that are NOT pregnant
-    cows = Reproduction.objects.filter(is_cow_pregnant=False)
+    # select_related avoids N+1 queries when accessing cow.cow_id, farm.telephone_number, etc.
+    cows = Reproduction.objects.filter(is_cow_pregnant=False).select_related(
+        "cow", "farm"
+    )
+    cow_count = cows.count()
 
     for cow_reproduction in cows:
         if cow_reproduction.heat_sign_start:
@@ -70,9 +73,9 @@ def check_heat_sign_alerts():
                         )
 
     logger.info(
-        f"Heat sign check complete: {alert_count} alerts sent out of {len(cows)} non-pregnant cows"
+        f"Heat sign check complete: {alert_count} alerts sent out of {cow_count} non-pregnant cows"
     )
-    return f"Checked {len(cows)} non-pregnant cows, sent {alert_count} heat monitoring alerts"
+    return f"Checked {cow_count} non-pregnant cows, sent {alert_count} heat monitoring alerts"
 
 
 def check_pregnancy_alerts():
@@ -80,10 +83,11 @@ def check_pregnancy_alerts():
     today = now().date()
     alert_count = 0
 
-    # Get pregnant cows with expected calving dates
+    # select_related avoids N+1 queries when accessing cow.cow_id, farm.telephone_number, etc.
     pregnant_cows = Reproduction.objects.filter(
         is_cow_pregnant=True, calving_date__isnull=False
-    )
+    ).select_related("cow", "farm")
+    pregnant_count = pregnant_cows.count()
 
     for cow_reproduction in pregnant_cows:
         expected_calving_date = cow_reproduction.calving_date
@@ -153,9 +157,9 @@ def check_pregnancy_alerts():
                     )
 
     logger.info(
-        f"Pregnancy check complete: {alert_count} alerts sent out of {len(pregnant_cows)} pregnant cows"
+        f"Pregnancy check complete: {alert_count} alerts sent out of {pregnant_count} pregnant cows"
     )
-    return f"Checked {len(pregnant_cows)} pregnant cows, sent {alert_count} pregnancy alerts"
+    return f"Checked {pregnant_count} pregnant cows, sent {alert_count} pregnancy alerts"
 
 
 def run_daily_checks():
