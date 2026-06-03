@@ -2,8 +2,10 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
-from .views import (BreedTypeViewSet, CowViewSet, DoctorViewSet,
-                    FarmerMedicalReportViewSet, FarmViewSet,
+from .views import (BreedTypeViewSet, CowViewSet,
+                    DataCollectorSubmitAnimalView,
+                    DataCollectorSubmitFarmView, DataCollectorViewSet,
+                    DoctorViewSet, FarmerMedicalReportViewSet, FarmViewSet,
                     FeedingFrequencyViewSet, FloorTypeViewSet,
                     GeneralHealthStatusViewSet, GynecologicalStatusViewSet,
                     HousingTypeViewSet, InseminationRecordViewSet,
@@ -35,7 +37,10 @@ router.register(r"generalhealthstatuses", GeneralHealthStatusViewSet)
 router.register(r"farmer-medical-reports", FarmerMedicalReportViewSet)
 router.register(r"medical-assessments", MedicalAssessmentViewSet)
 router.register(r"insemination-records", InseminationRecordViewSet)
+router.register(r"data-collectors", DataCollectorViewSet)
 
 urlpatterns = [
     path("", include(router.urls)),
+    path("submit-farm/", DataCollectorSubmitFarmView.as_view(), name="submit-farm"),
+    path("submit-animal/", DataCollectorSubmitAnimalView.as_view(), name="submit-animal"),
 ]
