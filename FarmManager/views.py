@@ -17,12 +17,12 @@ The refactoring focuses on:
 """
 
 import logging
+from decimal import Decimal
 
 from django.db import transaction
 from django.db.models import Q
 from django.http import JsonResponse
 from django.utils.timezone import now
-from django.views.decorators.csrf import csrf_exempt
 from django_filters.rest_framework import DjangoFilterBackend
 from drf_yasg import openapi
 from drf_yasg.utils import swagger_auto_schema
@@ -34,10 +34,11 @@ from AlertSystem.sendMesage import send_alert
 
 from .constants import APIMessages, MessageTemplates, MessageTypes
 from .models import MedicalAssessment  # Changed from Health
-from .models import (BreedType, Cow, Doctor, Farm, FarmerMedicalReport,
-                     FeedingFrequency, FloorType, GeneralHealthStatus,
-                     GynecologicalStatus, HousingType, InseminationRecord,
-                     Inseminator, MastitisStatus, Message, Reproduction,
+from .models import (BreedType, Cow, DataCollector, DataCollectorSubmission,
+                     Doctor, Farm, FarmerMedicalReport, FeedingFrequency,
+                     FloorType, GeneralHealthStatus, GynecologicalStatus,
+                     HousingType, InseminationRecord, Inseminator,
+                     MastitisStatus, MedicalAssessment, Message, Reproduction,
                      UdderHealthStatus, WaterSource)
 from django.contrib.auth import authenticate
 from rest_framework.authtoken.models import Token
@@ -45,11 +46,14 @@ from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 
 from rest_framework.views import APIView
-
-from .permissions import (AdminGetOnlyPermission, InseminatorReadPermission,
-                          ReadOnlyAdminPermission)
+from .permissions import (AdminGetOnlyPermission, DataCollectorWritePermission,
+                          InseminatorReadPermission, ReadOnlyAdminPermission)
 from .serializers import (BreedTypeSerializer, CowCreateUpdateSerializer,
-                          CowSerializer, DoctorAssignmentSerializer,
+                          CowSerializer,
+                          DataCollectorAnimalSubmissionSerializer,
+                          DataCollectorFarmSubmissionSerializer,
+                          DataCollectorSerializer,
+                          DoctorAssignmentSerializer,
                           DoctorMedicalAssessmentSerializer, DoctorSerializer,
                           FarmerMedicalAssessmentSerializer,
                           FarmerMedicalReportSerializer, FarmSerializer,
@@ -1658,6 +1662,111 @@ class DoctorViewSet(viewsets.ModelViewSet, LoggingMixin):
         })
 
 
+class DataCollectorViewSet(viewsets.ModelViewSet, LoggingMixin):
+    queryset = DataCollector.objects.all()
+    serializer_class = DataCollectorSerializer
+    permission_classes = [DataCollectorWritePermission]
+
+    def perform_create(self, serializer):
+        dc = serializer.save()
+        self.log_operation_success(
+            "created new data collector", f"{dc.name} (ID: {dc.id})"
+        )
+
+    def perform_update(self, serializer):
+        dc = serializer.save()
+        self.log_operation_success(
+            "updated data collector", f"{dc.name} (ID: {dc.id})"
+        )
+
+    @action(detail=True, methods=["get"])
+    def submissions(self, request, pk=None):
+        submissions = DataCollectorSubmission.objects.filter(submitted_by_id=pk)
+        page = self.paginate_queryset(submissions)
+        if page is not None:
+            serializer = DataCollectorSubmissionListSerializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+        serializer = DataCollectorSubmissionListSerializer(submissions, many=True)
+        return Response(serializer.data)
+
+
+class DataCollectorSubmitFarmView(APIView):
+    """Accepts farm data collection form submissions, validates, and stores as pending."""
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        request_body=DataCollectorFarmSubmissionSerializer,
+        responses={201: "Submission created", 400: "Validation error"},
+    )
+    def post(self, request):
+        data_collector_id = request.data.get("data_collector_id")
+        submit_data = {k: v for k, v in request.data.items() if k != "data_collector_id"}
+        serializer = DataCollectorFarmSubmissionSerializer(data=submit_data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Convert validated data to JSON-safe types for JSONField storage
+        data = serializer.validated_data.copy()
+        for key, value in data.items():
+            if isinstance(value, Decimal):
+                data[key] = float(value)
+            elif hasattr(value, 'strftime'):
+                data[key] = value.isoformat() if value else None
+
+        submission = DataCollectorSubmission.objects.create(
+            form_type=DataCollectorSubmission.FormType.FARM,
+            submitted_data=data,
+            status=DataCollectorSubmission.Status.PENDING,
+            submitted_by_id=data_collector_id,
+        )
+        return Response(
+            {
+                "message": "Farm data submitted successfully.",
+                "submission_id": submission.id,
+                "status": submission.status,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+
+class DataCollectorSubmitAnimalView(APIView):
+    """Accepts animal data collection form submissions, validates, and stores as pending."""
+    permission_classes = [AllowAny]
+
+    @swagger_auto_schema(
+        request_body=DataCollectorAnimalSubmissionSerializer,
+        responses={201: "Submission created", 400: "Validation error"},
+    )
+    def post(self, request):
+        data_collector_id = request.data.get("data_collector_id")
+        submit_data = {k: v for k, v in request.data.items() if k != "data_collector_id"}
+        serializer = DataCollectorAnimalSubmissionSerializer(data=submit_data)
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        # Convert validated data to JSON-safe types for JSONField storage
+        data = serializer.validated_data.copy()
+        for key, value in data.items():
+            if isinstance(value, Decimal):
+                data[key] = float(value)
+            elif hasattr(value, 'strftime'):
+                data[key] = value.isoformat() if value else None
+
+        submission = DataCollectorSubmission.objects.create(
+            form_type=DataCollectorSubmission.FormType.ANIMAL,
+            submitted_data=data,
+            status=DataCollectorSubmission.Status.PENDING,
+            submitted_by_id=data_collector_id,
+        )
+        return Response(
+            {
+                "message": "Animal data submitted successfully.",
+                "submission_id": submission.id,
+                "status": submission.status,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
 class LoginView(APIView):
     permission_classes = [AllowAny]
 
@@ -1685,6 +1794,7 @@ class LoginView(APIView):
         role = "farmer"
         doctor_id = None
         inseminator_id = None
+        datacollector_id = None
 
         if hasattr(user, 'doctor_profile') and user.doctor_profile:
             role = "doctor"
@@ -1692,6 +1802,9 @@ class LoginView(APIView):
         elif hasattr(user, 'inseminator_profile') and user.inseminator_profile:
             role = "inseminator"
             inseminator_id = user.inseminator_profile.id
+        elif hasattr(user, 'datacollector_profile') and user.datacollector_profile:
+            role = "data_collector"
+            datacollector_id = user.datacollector_profile.id
 
         user_data = {
             "id": str(user.id),
@@ -1708,6 +1821,8 @@ class LoginView(APIView):
             user_data["doctor_id"] = doctor_id
         if inseminator_id is not None:
             user_data["inseminator_id"] = inseminator_id
+        if datacollector_id is not None:
+            user_data["datacollector_id"] = datacollector_id
 
         return Response({
             "token": token.key,
