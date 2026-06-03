@@ -476,3 +476,43 @@ class InseminationRecord(SoftDeleteModel):
 
     class Meta:
         ordering = ["-recorded_date"]
+
+
+class DataCollector(StaffMember):
+    user = models.OneToOneField(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="datacollector_profile"
+    )
+
+    def __str__(self):
+        return f"{self.name} - {self.phone_number}"
+
+    class Meta:
+        ordering = ["name"]
+
+
+class DataCollectorSubmission(SoftDeleteModel):
+    class FormType(models.TextChoices):
+        FARM = "farm", _("Farm Data Collection")
+        ANIMAL = "animal", _("Animal Data Collection")
+
+    class Status(models.TextChoices):
+        PENDING = "pending", _("Pending Review")
+        APPROVED = "approved", _("Approved")
+        REJECTED = "rejected", _("Rejected")
+
+    form_type = models.CharField(max_length=20, choices=FormType.choices)
+    submitted_data = models.JSONField()
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.PENDING)
+    submitted_at = models.DateTimeField(auto_now_add=True)
+    reviewed_at = models.DateTimeField(null=True, blank=True)
+    reviewed_by = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
+    submitted_by = models.ForeignKey(
+        "DataCollector", on_delete=models.SET_NULL, null=True, blank=True, related_name="submissions"
+    )
+    notes = models.TextField(blank=True)
+
+    def __str__(self):
+        return f"{self.get_form_type_display()} - {self.status} ({self.submitted_at})"
+
+    class Meta:
+        ordering = ["-submitted_at"]
