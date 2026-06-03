@@ -1689,23 +1689,14 @@ class DataCollectorViewSet(viewsets.ModelViewSet, LoggingMixin):
         serializer = DataCollectorSubmissionListSerializer(submissions, many=True)
         return Response(serializer.data)
 
-
-class DataCollectorSubmitFarmView(APIView):
-    """Accepts farm data collection form submissions, validates, and stores as pending."""
-    permission_classes = [AllowAny]
-
-    @swagger_auto_schema(
-        request_body=DataCollectorFarmSubmissionSerializer,
-        responses={201: "Submission created", 400: "Validation error"},
-    )
-    def post(self, request):
+    @action(detail=False, methods=["post"], url_path="submit-farm")
+    def submit_farm(self, request):
         data_collector_id = request.data.get("data_collector_id")
         submit_data = {k: v for k, v in request.data.items() if k != "data_collector_id"}
         serializer = DataCollectorFarmSubmissionSerializer(data=submit_data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Convert validated data to JSON-safe types for JSONField storage
         data = serializer.validated_data.copy()
         for key, value in data.items():
             if isinstance(value, Decimal):
@@ -1728,23 +1719,14 @@ class DataCollectorSubmitFarmView(APIView):
             status=status.HTTP_201_CREATED,
         )
 
-
-class DataCollectorSubmitAnimalView(APIView):
-    """Accepts animal data collection form submissions, validates, and stores as pending."""
-    permission_classes = [AllowAny]
-
-    @swagger_auto_schema(
-        request_body=DataCollectorAnimalSubmissionSerializer,
-        responses={201: "Submission created", 400: "Validation error"},
-    )
-    def post(self, request):
+    @action(detail=False, methods=["post"], url_path="submit-animal")
+    def submit_animal(self, request):
         data_collector_id = request.data.get("data_collector_id")
         submit_data = {k: v for k, v in request.data.items() if k != "data_collector_id"}
         serializer = DataCollectorAnimalSubmissionSerializer(data=submit_data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        # Convert validated data to JSON-safe types for JSONField storage
         data = serializer.validated_data.copy()
         for key, value in data.items():
             if isinstance(value, Decimal):
@@ -1766,6 +1748,7 @@ class DataCollectorSubmitAnimalView(APIView):
             },
             status=status.HTTP_201_CREATED,
         )
+
 
 class LoginView(APIView):
     permission_classes = [AllowAny]
