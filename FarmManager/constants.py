@@ -22,6 +22,7 @@ class MessageTypes:
     CALVING_DUE_ALERT = "calving_due_alert"
     HEAT_MONITORING_ALERT = "heat_monitoring_alert"
     DOCTOR_CONFIRMATION = "doctor_confirmation"
+    DATA_COLLECTION_ALERT = "data_collection_alert"
     OTHER = "other"
 
 
@@ -226,6 +227,27 @@ class MessageTemplates:
 
 
 # API Response Messages
+    @staticmethod
+    def data_collection_farmer_notification(farm_id, farmer_name, form_type):
+        form_label = "የእርሻ" if form_type == "farm" else "የእንስሳት"
+        return (
+            f"✅ የመረጃ አሰባሰብ ሪፖርት ደርሷል\n"
+            f"እርሻ፦ {farm_id} - {farmer_name}\n"
+            f"የተሰበሰበው መረጃ፦ {form_label}\n"
+            f"መረጃዎ በተሳካ ሁኔታ ተመዝግቧል።"
+        )
+
+    @staticmethod
+    def data_collector_confirmation(farm_id, farmer_name, form_type):
+        form_label = "የእርሻ" if form_type == "farm" else "የእንስሳት"
+        return (
+            f"✅ መረጃ ተመዝግቧል\n"
+            f"እርሻ፦ {farm_id} - {farmer_name}\n"
+            f"የተሰበሰበው መረጃ፦ {form_label}\n"
+            f"መረጃዎ በተሳካ ሁኔታ ተመዝግቧል።"
+        )
+
+
 class APIMessages:
     HEAT_SIGN_RECORDED = "Heat sign recorded and alert sent successfully"
     PREGNANCY_UPDATED = "Pregnancy monitoring record updated successfully"
@@ -246,3 +268,5 @@ class APIMessages:
     FAILED_TO_RECORD_MEDICAL_ASSESSMENT = "Failed to record medical assessment"
     FAILED_TO_RECORD_HEAT_MONITORING = "Failed to record heat sign monitoring"
     FAILED_TO_RECORD_BIRTH = "Failed to record birth event"
+    DATA_COLLECTION_SUBMITTED = "Data collection submitted successfully"
+    FAILED_TO_RECORD_DATA_COLLECTION = "Failed to record data collection"

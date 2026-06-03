@@ -73,16 +73,14 @@ class ReadOnlyAdminPermission(permissions.BasePermission):
 
 class DataCollectorWritePermission(permissions.BasePermission):
     """
-    Custom permission that allows:
-    - POST for anyone (open submission — matches existing API pattern)
-    - All other methods require admin authentication
+    Custom permission for DataCollector operations:
+    - All methods require authentication + datacollector_profile
     """
 
     def has_permission(self, request, view):
-        if request.method == "POST":
-            return True
         return (
             request.user
             and request.user.is_authenticated
-            and request.user.is_staff
+            and hasattr(request.user, "datacollector_profile")
+            and request.user.datacollector_profile is not None
         )

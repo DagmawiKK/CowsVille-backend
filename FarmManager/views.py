@@ -1665,7 +1665,14 @@ class DoctorViewSet(viewsets.ModelViewSet, LoggingMixin):
 class DataCollectorViewSet(viewsets.ModelViewSet, LoggingMixin):
     queryset = DataCollector.objects.all()
     serializer_class = DataCollectorSerializer
-    permission_classes = [DataCollectorWritePermission]
+    permission_classes = [AdminGetOnlyPermission]
+
+    def get_permissions(self):
+        if self.action in ("submit_farm", "submit_animal"):
+            return [DataCollectorWritePermission()]
+        elif self.action == "submissions":
+            return [permissions.IsAuthenticated()]
+        return super().get_permissions()
 
     def perform_create(self, serializer):
         dc = serializer.save()
@@ -1689,63 +1696,137 @@ class DataCollectorViewSet(viewsets.ModelViewSet, LoggingMixin):
         serializer = DataCollectorSubmissionListSerializer(submissions, many=True)
         return Response(serializer.data)
 
-    @action(detail=False, methods=["post"], url_path="submit-farm")
+    @action(detail=False, methods=["post"])
     def submit_farm(self, request):
+        """Record farm data collection submission"""
+        self.log_request_received("farm data collection")
         serializer = DataCollectorFarmSubmissionSerializer(data=request.data)
         if not serializer.is_valid():
+            self.log_validation_error("farm data collection", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        data_collector_id = serializer.validated_data.pop("data_collector_id")
-        data = serializer.validated_data.copy()
-        for key, value in data.items():
-            if isinstance(value, Decimal):
-                data[key] = float(value)
-            elif hasattr(value, 'strftime'):
-                data[key] = value.isoformat() if value else None
+        try:
+            with transaction.atomic():
+                datacollector = request.user.datacollector_profile
+                data = serializer.validated_data.copy()
+                farm = Farm.objects.get(farm_id=data["farm_id"])
 
-        submission = DataCollectorSubmission.objects.create(
-            form_type=DataCollectorSubmission.FormType.FARM,
-            submitted_data=data,
-            status=DataCollectorSubmission.Status.PENDING,
-            submitted_by_id=data_collector_id,
-        )
-        return Response(
-            {
-                "message": "Farm data submitted successfully.",
-                "submission_id": submission.id,
-                "status": submission.status,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+                submission = DataCollectorSubmission.objects.create(
+                    form_type=DataCollectorSubmission.FormType.FARM,
+                    submitted_data=data,
+                    status=DataCollectorSubmission.Status.PENDING,
+                    submitted_by=datacollector,
+                )
 
-    @action(detail=False, methods=["post"], url_path="submit-animal")
+                farmer_message = MessageTemplates.data_collection_farmer_notification(
+                    farm.farm_id, data.get("farmer_name", farm.owner_name), "farm"
+                )
+                MessagingService.send_notification_with_message_record(
+                    farm.telephone_number,
+                    farmer_message,
+                    MessageTypes.DATA_COLLECTION_ALERT,
+                    farm,
+                    None,
+                    f"Farm data collection alert for farm {farm.farm_id}:",
+                )
+
+                dc_message = MessageTemplates.data_collector_confirmation(
+                    farm.farm_id, data.get("farmer_name", farm.owner_name), "farm"
+                )
+                MessagingService.send_notification_with_message_record(
+                    datacollector.phone_number,
+                    dc_message,
+                    MessageTypes.DATA_COLLECTION_ALERT,
+                    farm,
+                    None,
+                    f"Data collector confirmation for farm {farm.farm_id}:",
+                )
+
+                self.log_operation_success(
+                    "created farm data collection", f"for farm {farm.farm_id}"
+                )
+
+                response_data = ResponseService.success_response(
+                    APIMessages.DATA_COLLECTION_SUBMITTED,
+                    {
+                        "submission_id": submission.id,
+                        "status": submission.status,
+                    },
+                )
+                return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            self.log_operation_error("farm data collection", e)
+            error_response, error_status = ResponseService.error_response(
+                APIMessages.FAILED_TO_RECORD_DATA_COLLECTION
+            )
+            return Response(error_response, status=error_status)
+
+    @action(detail=False, methods=["post"])
     def submit_animal(self, request):
+        """Record animal data collection submission"""
+        self.log_request_received("animal data collection")
         serializer = DataCollectorAnimalSubmissionSerializer(data=request.data)
         if not serializer.is_valid():
+            self.log_validation_error("animal data collection", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        data_collector_id = serializer.validated_data.pop("data_collector_id")
-        data = serializer.validated_data.copy()
-        for key, value in data.items():
-            if isinstance(value, Decimal):
-                data[key] = float(value)
-            elif hasattr(value, 'strftime'):
-                data[key] = value.isoformat() if value else None
+        try:
+            with transaction.atomic():
+                datacollector = request.user.datacollector_profile
+                data = serializer.validated_data.copy()
+                cow = Cow.objects.get(cow_id=data["cow_id"], farm__farm_id=data["farm_id"])
 
-        submission = DataCollectorSubmission.objects.create(
-            form_type=DataCollectorSubmission.FormType.ANIMAL,
-            submitted_data=data,
-            status=DataCollectorSubmission.Status.PENDING,
-            submitted_by_id=data_collector_id,
-        )
-        return Response(
-            {
-                "message": "Animal data submitted successfully.",
-                "submission_id": submission.id,
-                "status": submission.status,
-            },
-            status=status.HTTP_201_CREATED,
-        )
+                submission = DataCollectorSubmission.objects.create(
+                    form_type=DataCollectorSubmission.FormType.ANIMAL,
+                    submitted_data=data,
+                    status=DataCollectorSubmission.Status.PENDING,
+                    submitted_by=datacollector,
+                )
+
+                farmer_message = MessageTemplates.data_collection_farmer_notification(
+                    cow.farm.farm_id, cow.farm.owner_name, "animal"
+                )
+                MessagingService.send_notification_with_message_record(
+                    cow.farm.telephone_number,
+                    farmer_message,
+                    MessageTypes.DATA_COLLECTION_ALERT,
+                    cow.farm,
+                    cow,
+                    f"Animal data collection alert for farm {cow.farm.farm_id}:",
+                )
+
+                dc_message = MessageTemplates.data_collector_confirmation(
+                    cow.farm.farm_id, cow.farm.owner_name, "animal"
+                )
+                MessagingService.send_notification_with_message_record(
+                    datacollector.phone_number,
+                    dc_message,
+                    MessageTypes.DATA_COLLECTION_ALERT,
+                    cow.farm,
+                    cow,
+                    f"Data collector confirmation for farm {cow.farm.farm_id}:",
+                )
+
+                self.log_operation_success(
+                    "created animal data collection", f"for cow {cow.cow_id}"
+                )
+
+                response_data = ResponseService.success_response(
+                    APIMessages.DATA_COLLECTION_SUBMITTED,
+                    {
+                        "submission_id": submission.id,
+                        "status": submission.status,
+                    },
+                )
+                return Response(response_data, status=status.HTTP_201_CREATED)
+
+        except Exception as e:
+            self.log_operation_error("animal data collection", e)
+            error_response, error_status = ResponseService.error_response(
+                APIMessages.FAILED_TO_RECORD_DATA_COLLECTION
+            )
+            return Response(error_response, status=error_status)
 
 
 class LoginView(APIView):

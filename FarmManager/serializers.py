@@ -1398,9 +1398,8 @@ class DataCollectorSerializer(BasePhoneNumberMixin, serializers.ModelSerializer)
 
 
 class DataCollectorFarmSubmissionSerializer(serializers.Serializer):
-    """Accepts farm data collection form fields from the mobile app."""
+    """Accepts farm data collection form fields."""
 
-    data_collector_id = serializers.IntegerField(required=True)
     farm_id = serializers.CharField(required=True)
     farm_name = serializers.CharField(required=False, allow_blank=True, default="")
     cluster_number = serializers.CharField(required=False, allow_blank=True, default="")
@@ -1413,11 +1412,18 @@ class DataCollectorFarmSubmissionSerializer(serializers.Serializer):
     number_of_calves = serializers.IntegerField(required=False, allow_null=True, default=None)
     farm_type = serializers.CharField(required=False, allow_blank=True, default="")
 
+    def to_internal_value(self, data):
+        return super().to_internal_value(data)
+
+    def validate(self, data):
+        if data.get("farm_id") and not Farm.objects.filter(farm_id=data["farm_id"]).exists():
+            raise serializers.ValidationError({"farm_id": f"Farm with ID '{data['farm_id']}' not found"})
+        return data
+
 
 class DataCollectorAnimalSubmissionSerializer(serializers.Serializer):
-    """Accepts animal data collection form fields from the mobile app."""
+    """Accepts animal data collection form fields."""
 
-    data_collector_id = serializers.IntegerField(required=True)
     farm_id = serializers.CharField(required=True)
     cow_id = serializers.CharField(required=True)
     tag_number = serializers.CharField(required=False, allow_blank=True, default="")
@@ -1435,6 +1441,18 @@ class DataCollectorAnimalSubmissionSerializer(serializers.Serializer):
     is_pregnant = serializers.CharField(required=False, allow_blank=True, default="")
     last_calving_date = serializers.CharField(required=False, allow_blank=True, default="")
     insemination_count = serializers.IntegerField(required=False, allow_null=True, default=None)
+
+    def to_internal_value(self, data):
+        return super().to_internal_value(data)
+
+    def validate(self, data):
+        farm_id = data.get("farm_id")
+        cow_id = data.get("cow_id")
+        if farm_id and not Farm.objects.filter(farm_id=farm_id).exists():
+            raise serializers.ValidationError({"farm_id": f"Farm with ID '{farm_id}' not found"})
+        if farm_id and cow_id and not Cow.objects.filter(cow_id=cow_id, farm__farm_id=farm_id).exists():
+            raise serializers.ValidationError({"cow_id": f"Cow with ID '{cow_id}' not found in farm '{farm_id}'"})
+        return data
 
 
 class DataCollectorSubmissionListSerializer(serializers.ModelSerializer):
