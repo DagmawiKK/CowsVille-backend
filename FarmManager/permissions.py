@@ -69,3 +69,20 @@ class ReadOnlyAdminPermission(permissions.BasePermission):
 
         # Deny all write operations
         return False
+
+
+class DataCollectorWritePermission(permissions.BasePermission):
+    """
+    Custom permission that allows:
+    - POST for anyone (open submission — matches existing API pattern)
+    - All other methods require admin authentication
+    """
+
+    def has_permission(self, request, view):
+        if request.method == "POST":
+            return True
+        return (
+            request.user
+            and request.user.is_authenticated
+            and request.user.is_staff
+        )
