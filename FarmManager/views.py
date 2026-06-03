@@ -48,7 +48,7 @@ from rest_framework.permissions import AllowAny
 from rest_framework.views import APIView
 from .permissions import (AdminGetOnlyPermission, DataCollectorWritePermission,
                           InseminatorReadPermission, ReadOnlyAdminPermission)
-from .serializers import (BreedTypeSerializer, CowCreateUpdateSerializer,
+from .serializers import (BreedTypeSerializer, CowCreateUpdateSerializer, DataCollectorSubmissionListSerializer,
                           CowSerializer,
                           DataCollectorAnimalSubmissionSerializer,
                           DataCollectorFarmSubmissionSerializer,
