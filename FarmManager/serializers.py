@@ -16,12 +16,14 @@ from decimal import Decimal, InvalidOperation
 from django.db import models
 from rest_framework import serializers
 
-from .models import (BreedType, Cow, Doctor, Farm, FarmerMedicalReport,
-                     FeedingFrequency, FloorType, GeneralHealthStatus,
-                     GynecologicalStatus, HousingType, InseminationRecord,
-                     Inseminator, MastitisStatus, MedicalAssessment, Message,
-                     Reproduction, UdderHealthStatus, WaterSource)
-from .services import LoggingMixin, ValidationService
+from .models import (BreedType, Cow, DataCollector,
+                     DataCollectorSubmission, Doctor, Farm,
+                     FarmerMedicalReport, FeedingFrequency, FloorType,
+                     GeneralHealthStatus, GynecologicalStatus, HousingType,
+                     InseminationRecord, Inseminator, MastitisStatus,
+                     MedicalAssessment, Message, Reproduction,
+                     UdderHealthStatus, WaterSource)
+from .services import LoggingMixin, ODKValidationService, ValidationService
 
 logger = logging.getLogger(__name__)
 
@@ -1387,3 +1389,99 @@ class MonitorBirthSerializer(serializers.Serializer):
             return data
         except Cow.DoesNotExist:
             raise serializers.ValidationError("Cow not found")
+
+
+class DataCollectorSerializer(BasePhoneNumberMixin, serializers.ModelSerializer):
+    class Meta:
+        model = DataCollector
+        fields = "__all__"
+
+
+class DataCollectorFarmSubmissionSerializer(serializers.Serializer):
+    """Accepts farm data collection form fields with strict ODK validation."""
+
+    owner_name = serializers.CharField(required=True)
+    farm_id = serializers.CharField(required=True)
+    address = serializers.CharField(required=True)
+    tel_no = serializers.IntegerField(required=True)
+    location_gps = serializers.CharField(required=False, allow_blank=True)
+    fcc_no = serializers.IntegerField(required=True)
+    herd_size = serializers.IntegerField(required=True)
+    calves = serializers.IntegerField(required=True)
+    milking_cows = serializers.IntegerField(required=True)
+    TDM = serializers.DecimalField(required=True, max_digits=10, decimal_places=2)
+    housing = serializers.CharField(required=True)
+    floor = serializers.CharField(required=True)
+    feed = serializers.CharField(required=True)
+    feeding_rate = serializers.CharField(required=True)
+    water_source = serializers.CharField(required=True)
+    water_rate = serializers.CharField(required=True)
+    hygiene_score = serializers.CharField(required=True)
+
+    def validate(self, data):
+        errors = ODKValidationService.validate_farm_submission(data)
+        if errors:
+            raise serializers.ValidationError(errors)
+        return data
+
+
+class DataCollectorAnimalSubmissionSerializer(serializers.Serializer):
+    """Accepts animal data collection form fields with strict ODK validation."""
+
+    farm_id_input = serializers.CharField(required=True)
+    cow_id_input = serializers.CharField(required=True)
+    breed = serializers.CharField(required=True)
+    other_breed = serializers.CharField(required=False, allow_blank=True)
+    date_of_birth = serializers.DateField(required=True)
+    sex = serializers.CharField(required=True)
+    parity = serializers.IntegerField(required=True)
+    body_weight = serializers.DecimalField(required=True, max_digits=8, decimal_places=2)
+    bcs = serializers.CharField(required=True)
+    gynecological_status_name = serializers.CharField(required=True)
+    lactation_number = serializers.CharField(required=True)
+    has_lameness = serializers.CharField(required=True)
+    days_in_milk = serializers.IntegerField(required=True)
+    average_daily_milk = serializers.DecimalField(required=True, max_digits=10, decimal_places=2)
+    cow_inseminated_before = serializers.CharField(required=True)
+    last_date_insemination = serializers.DateField(required=False, allow_null=True)
+    number_of_inseminations = serializers.IntegerField(required=False, allow_null=True)
+    id_or_breed_bull_used = serializers.CharField(required=False, allow_blank=True)
+    last_calving_date = serializers.DateField(required=False, allow_null=True)
+    is_pregnant = serializers.CharField(required=True)
+    pregnancy_date = serializers.DateField(required=False, allow_null=True)
+    heat_shown = serializers.CharField(required=False, allow_blank=True)
+    heat_start_date = serializers.DateField(required=False, allow_null=True)
+    heat_end_date = serializers.DateField(required=False, allow_null=True)
+    heat_signs = serializers.CharField(required=False, allow_blank=True)
+    nsc = serializers.IntegerField(required=False, allow_null=True)
+    udder_health = serializers.CharField(required=True)
+    mastitis = serializers.CharField(required=True)
+    general_health = serializers.CharField(required=True)
+    reproductive_health = serializers.CharField(required=True)
+    other_reproductive_health = serializers.CharField(required=False, allow_blank=True)
+    metabolic_disease = serializers.CharField(required=True)
+    other_metabolic_disease = serializers.CharField(required=False, allow_blank=True)
+    is_vaccinated = serializers.CharField(required=True)
+    vaccination_date = serializers.DateField(required=False, allow_null=True)
+    vaccination_type = serializers.CharField(required=False, allow_blank=True)
+    deworming = serializers.CharField(required=True)
+    deworming_date = serializers.DateField(required=False, allow_null=True)
+    deworming_type = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, data):
+        errors = ODKValidationService.validate_animal_submission(data)
+        if errors:
+            raise serializers.ValidationError(errors)
+        return data
+
+
+class DataCollectorSubmissionListSerializer(serializers.ModelSerializer):
+    form_type_display = serializers.CharField(source="get_form_type_display", read_only=True)
+    status_display = serializers.CharField(source="get_status_display", read_only=True)
+
+    class Meta:
+        model = DataCollectorSubmission
+        fields = [
+            "id", "form_type", "form_type_display", "submitted_data",
+            "status", "status_display", "submitted_at", "notes",
+        ]
