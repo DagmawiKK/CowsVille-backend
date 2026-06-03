@@ -1691,12 +1691,11 @@ class DataCollectorViewSet(viewsets.ModelViewSet, LoggingMixin):
 
     @action(detail=False, methods=["post"], url_path="submit-farm")
     def submit_farm(self, request):
-        data_collector_id = request.data.get("data_collector_id")
-        submit_data = {k: v for k, v in request.data.items() if k != "data_collector_id"}
-        serializer = DataCollectorFarmSubmissionSerializer(data=submit_data)
+        serializer = DataCollectorFarmSubmissionSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        data_collector_id = serializer.validated_data.pop("data_collector_id")
         data = serializer.validated_data.copy()
         for key, value in data.items():
             if isinstance(value, Decimal):
@@ -1721,12 +1720,11 @@ class DataCollectorViewSet(viewsets.ModelViewSet, LoggingMixin):
 
     @action(detail=False, methods=["post"], url_path="submit-animal")
     def submit_animal(self, request):
-        data_collector_id = request.data.get("data_collector_id")
-        submit_data = {k: v for k, v in request.data.items() if k != "data_collector_id"}
-        serializer = DataCollectorAnimalSubmissionSerializer(data=submit_data)
+        serializer = DataCollectorAnimalSubmissionSerializer(data=request.data)
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+        data_collector_id = serializer.validated_data.pop("data_collector_id")
         data = serializer.validated_data.copy()
         for key, value in data.items():
             if isinstance(value, Decimal):
