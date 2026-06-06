@@ -167,6 +167,13 @@ class Farm(SoftDeleteModel):
         blank=True,
         related_name="assigned_farms",
     )
+    farmer = models.ForeignKey(
+        "Farmer",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="farms",
+    )
 
     def clean(self):
         from django.core.exceptions import ValidationError
@@ -489,6 +496,17 @@ class DataCollector(StaffMember):
     class Meta:
         ordering = ["name"]
 
+
+class Farmer(StaffMember):
+    user = models.OneToOneField(
+        User, on_delete=models.SET_NULL, null=True, blank=True, related_name="farmer_profile"
+    )
+
+    def __str__(self):
+        return f"{self.name} - {self.phone_number}"
+
+    class Meta:
+        ordering = ["name"]
 
 class DataCollectorSubmission(SoftDeleteModel):
     class FormType(models.TextChoices):
