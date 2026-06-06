@@ -1,6 +1,7 @@
 from django.contrib import admin
 
-from .models import (BreedType, Cow, Doctor, Farm, FarmerMedicalReport,
+from .models import (BreedType, Cow, Doctor, Farm, Farmer,
+                     FarmerMedicalReport,
                      FeedingFrequency, FloorType, GeneralHealthStatus,
                      GynecologicalStatus, HousingType, InseminationRecord,
                      Inseminator, MastitisStatus, MedicalAssessment, Message,
@@ -49,6 +50,13 @@ class CowAdmin(admin.ModelAdmin):
 class DoctorAdmin(admin.ModelAdmin):
     list_display = ("name", "phone_number", "is_active", "license_number")
     search_fields = ("name", "phone_number", "license_number")
+    list_filter = ("is_active",)
+
+
+@admin.register(Farmer)
+class FarmerAdmin(admin.ModelAdmin):
+    list_display = ("name", "phone_number", "is_active")
+    search_fields = ("name", "phone_number")
     list_filter = ("is_active",)
 
 
