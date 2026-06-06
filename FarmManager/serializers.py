@@ -18,7 +18,7 @@ from rest_framework import serializers
 
 from .models import (BreedType, Cow, DataCollector,
                      DataCollectorSubmission, Doctor, Farm,
-                     FarmerMedicalReport, FeedingFrequency, FloorType,
+                     Farmer, FarmerMedicalReport, FeedingFrequency, FloorType,
                      GeneralHealthStatus, GynecologicalStatus, HousingType,
                      InseminationRecord, Inseminator, MastitisStatus,
                      MedicalAssessment, Message, Reproduction,
@@ -92,6 +92,9 @@ class FarmSerializer(
     inseminator_name = serializers.CharField(
         source="inseminator.name", read_only=True, allow_null=True
     )
+    farmer_name = serializers.CharField(
+        source="farmer.name", read_only=True, allow_null=True
+    )
 
     # Field mappings for incoming data
     tel_no = serializers.CharField(write_only=True, required=False)
@@ -133,6 +136,7 @@ class FarmSerializer(
             "farm_hygiene_score",
             "inseminator",
             "doctor",
+            "farmer",
             "is_deleted",
             # Read-only display fields
             "type_of_housing_name",
@@ -142,6 +146,7 @@ class FarmSerializer(
             "rate_of_water_giving_name",
             "doctor_name",
             "inseminator_name",
+            "farmer_name",
             # Mapping fields (write-only)
             "tel_no",
             "fcc_no",
@@ -1394,6 +1399,12 @@ class MonitorBirthSerializer(serializers.Serializer):
 class DataCollectorSerializer(BasePhoneNumberMixin, serializers.ModelSerializer):
     class Meta:
         model = DataCollector
+        fields = "__all__"
+
+
+class FarmerSerializer(BasePhoneNumberMixin, serializers.ModelSerializer):
+    class Meta:
+        model = Farmer
         fields = "__all__"
 
 
