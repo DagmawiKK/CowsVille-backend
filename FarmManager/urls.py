@@ -4,7 +4,8 @@ from rest_framework.routers import DefaultRouter
 
 from .views import (BreedTypeViewSet, CowViewSet,
                     DataCollectorViewSet, DoctorViewSet,
-                    FarmerMedicalReportViewSet, FarmViewSet,
+                    FarmerMedicalReportViewSet, FarmerViewSet,
+                    FarmViewSet,
                     FeedingFrequencyViewSet, FloorTypeViewSet,
                     GeneralHealthStatusViewSet, GynecologicalStatusViewSet,
                     HousingTypeViewSet, InseminationRecordViewSet,
@@ -21,6 +22,7 @@ router.register(r"cows", CowViewSet)
 router.register(r"reproduction", ReproductionViewSet)
 router.register(r"inseminators", InseminatorViewSet)
 router.register(r"messages", MessageViewSet)
+router.register(r"farmers", FarmerViewSet)
 router.register(r"doctors", DoctorViewSet)
 # Choice model endpoints
 router.register(r"breedtypes", BreedTypeViewSet)

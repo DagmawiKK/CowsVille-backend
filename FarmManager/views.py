@@ -35,7 +35,7 @@ from AlertSystem.sendMesage import send_alert
 from .constants import APIMessages, MessageTemplates, MessageTypes
 from .models import MedicalAssessment  # Changed from Health
 from .models import (BreedType, Cow, DataCollector, DataCollectorSubmission,
-                     Doctor, Farm, FarmerMedicalReport, FeedingFrequency,
+                     Doctor, Farm, Farmer, FarmerMedicalReport, FeedingFrequency,
                      FloorType, GeneralHealthStatus, GynecologicalStatus,
                      HousingType, InseminationRecord, Inseminator,
                      MastitisStatus, MedicalAssessment, Message, Reproduction,
@@ -56,7 +56,8 @@ from .serializers import (BreedTypeSerializer, CowCreateUpdateSerializer, DataCo
                           DoctorAssignmentSerializer,
                           DoctorMedicalAssessmentSerializer, DoctorSerializer,
                           FarmerMedicalAssessmentSerializer,
-                          FarmerMedicalReportSerializer, FarmSerializer,
+                          FarmerMedicalReportSerializer, FarmerSerializer,
+                          FarmSerializer,
                           FeedingFrequencySerializer, FloorTypeSerializer,
                           GeneralHealthStatusSerializer,
                           GynecologicalStatusSerializer,
@@ -1662,6 +1663,22 @@ class DoctorViewSet(viewsets.ModelViewSet, LoggingMixin):
         })
 
 
+
+class FarmerViewSet(viewsets.ModelViewSet, LoggingMixin):
+    queryset = Farmer.objects.all()
+    serializer_class = FarmerSerializer
+    permission_classes = [AdminGetOnlyPermission]
+
+    def perform_create(self, serializer):
+        farmer = serializer.save()
+        self.log_operation_success(
+            "created new farmer", f"{farmer.name} (ID: {farmer.id})"
+        )
+
+    def perform_update(self, serializer):
+        farmer = serializer.save()
+        self.log_operation_success("updated farmer", f"{farmer.name} (ID: {farmer.id})")
+
 class DataCollectorViewSet(viewsets.ModelViewSet, LoggingMixin):
     queryset = DataCollector.objects.all()
     serializer_class = DataCollectorSerializer
@@ -1851,23 +1868,34 @@ class LoginView(APIView):
 
         token, _ = Token.objects.get_or_create(user=user)
 
-        farm = Farm.objects.first()
-
         role = "farmer"
+        farm = Farm.objects.first()
         doctor_id = None
         inseminator_id = None
         datacollector_id = None
+        farmer_id = None
 
         if hasattr(user, 'doctor_profile') and user.doctor_profile:
             role = "doctor"
             doctor_id = user.doctor_profile.id
+            doctor_farms = Farm.objects.filter(doctor_id=doctor_id)
+            if doctor_farms.exists():
+                farm = doctor_farms.first()
         elif hasattr(user, 'inseminator_profile') and user.inseminator_profile:
             role = "inseminator"
             inseminator_id = user.inseminator_profile.id
+            inseminator_farms = Farm.objects.filter(inseminator_id=inseminator_id)
+            if inseminator_farms.exists():
+                farm = inseminator_farms.first()
         elif hasattr(user, 'datacollector_profile') and user.datacollector_profile:
             role = "data_collector"
             datacollector_id = user.datacollector_profile.id
-
+        elif hasattr(user, 'farmer_profile') and user.farmer_profile:
+            role = "farmer"
+            farmer_id = user.farmer_profile.id
+            farmer_farms = Farm.objects.filter(farmer_id=farmer_id)
+            if farmer_farms.exists():
+                farm = farmer_farms.first()
         user_data = {
             "id": str(user.id),
             "firstName": user.first_name,
@@ -1885,6 +1913,8 @@ class LoginView(APIView):
             user_data["inseminator_id"] = inseminator_id
         if datacollector_id is not None:
             user_data["datacollector_id"] = datacollector_id
+        if farmer_id is not None:
+            user_data["farmer_id"] = farmer_id
 
         return Response({
             "token": token.key,
